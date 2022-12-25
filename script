@@ -1,0 +1,122 @@
+// ==UserScript==
+// @name         Likes Getter
+// @namespace    http://tampermonkey.net/
+// @version      0.1
+// @description  Who liked this tweet? Get all lists free!
+// @author       Mogura (atmark)mogjp2
+// @match        https://twitter.com/*/status/*/likes
+// @icon         data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==
+// @grant        none
+// ==/UserScript==
+function sleep(msec) {
+   return new Promise(function(resolve) {
+       setTimeout(function() {resolve()}, msec);
+   })
+}
+
+function parseUserCell(node) { //returns null or userid
+    //ignore null content
+    if (node === null) {return null;};
+    //get deepest div(=userid)
+    if(node.hasChildNodes() && node.childElementCount > 0) {
+        //skip for dir="auto" cuz its profile sentence
+        var nextDIV = null;
+        if(node.lastElementChild.dir === "auto") {
+            nextDIV = node.firstElementChild;
+        } else {
+            nextDIV = node.lastElementChild;
+        }
+        //re-parse(go deeper div)
+        return parseUserCell(nextDIV); //recursion
+    } else {
+        //Deepest div detected
+        let userid = node.innerText;
+        console.log("detected:", userid);
+        return userid;
+    }
+}
+
+let outputData = null; //completed data
+async function startParse() {
+    const likedUser_div = document.querySelector('#modal-header');
+    likedUser_div.style.backgroundColor = 'pink';
+
+    let userIDs = new Array();
+    while(true) {
+        //get data
+        const elm = document.querySelector('[aria-label="タイムライン: いいねしたユーザー"]');
+        const cellInnerDivs = elm.querySelectorAll('[data-testid="cellInnerDiv"]');
+
+        //1: add to thisloop(arr), 2: compare(detect end), 3:concat userid and thisloop
+        let thisloop_userIDs = new Array();
+        //loop
+        for (const cell of cellInnerDivs) {
+            //get user cell
+            const userCells = cell.querySelector('[data-testid="UserCell"]');
+            //get user ids
+            let userID = await parseUserCell(userCells);
+            if (userID !== null) {
+                thisloop_userIDs.push(userID);
+            };
+        }
+        //exit if its end of likes
+        let lastID = userIDs.slice(-1)[0]; //last element
+        let thisloop_lastID = thisloop_userIDs.slice(-1)[0]; //last element
+        if (lastID === thisloop_lastID) {
+            //fix data & create output data
+            console.log("Parse End, analyze&optimizing to string...");
+            const id_fixed = [...new Set(userIDs)]; //delete duplicated
+            outputData = id_fixed.join('\n'); //create string
+            console.log(outputData);
+
+            //create download btn
+            const btn = cellInnerDivs[cellInnerDivs.length - 1];//last null content
+            btn.style.backgroundColor = 'green';
+            btn.style.border = '3px solid white';
+            btn.style.color = 'white';
+            btn.innerText = 'click to download';
+            btn.addEventListener('click', download, false);
+
+            break;
+        } else {
+           //continue parsing
+           userIDs = userIDs.concat(thisloop_userIDs);
+           cellInnerDivs[cellInnerDivs.length - 1].scrollIntoView({ //scroll to last
+               behavior: 'smooth',
+               block: 'start'
+           });
+        }
+        console.log("async await 5000ms", cellInnerDivs.length);
+        await sleep(3000);
+    }
+}
+
+function download() {
+    let a = document.createElement('a');
+    const blob = new Blob([outputData], {type: 'text/plain'});//create blob obj
+    a.href = URL.createObjectURL(blob);
+    a.target = '_blank';
+    a.download = 'userIDs_LikesGetter by mogjp2'
+    a.click();
+    URL.revokeObjectURL(a.href);
+}
+
+async function main() {
+    console.log("loaded dom");
+    await sleep(1000);
+
+    const likedUser_div = document.querySelector('#modal-header');
+    //set scheme
+    likedUser_div.style.backgroundColor = 'skyblue';
+    likedUser_div.style.border = '2px solid white';
+    likedUser_div.style.borderRadius = '5%'
+    likedUser_div.innerText = 'いいねしたユーザーを取得';
+    //set event listener
+    likedUser_div.addEventListener('click', startParse);
+}
+
+if (document.readyState !== 'loading') {
+    main();
+} else {
+    document.addEventListener('DOMContentLoaded', main, false);
+}

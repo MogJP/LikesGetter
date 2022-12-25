@@ -1,5 +1,5 @@
 # LikesGetter
 get all user-id from likes.
 
-how to install/use
+#how to install/use
 creating yt vid...please wait

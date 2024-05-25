@@ -1,5 +1,6 @@
 # LikesGetter
 get all user-id from Twitter likes.
+please check twitter's terms and conditions and use at your own risk.
 
 # how to install/use
 
